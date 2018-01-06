@@ -1,0 +1,232 @@
+author:yj
+
+since:2018-1-6
+
+direction:async thread test
+
+using System;
+using System.Collections.Generic;
+using System.Data.Entity;
+using System.Data.Entity.Core.Objects;
+using System.Data.Entity.Infrastructure;
+using System.Diagnostics;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Work_Info
+{
+    delegate void ShowListDeletage(List<T_Basis_FeedBack> list);
+    class Program
+    {
+        hyhtEntities dbContext = new hyhtEntities();
+        static void Main(string[] args)
+        {
+            List<T_Basis_FeedBack> list = null;
+            Program info = new Program();
+            Stopwatch timer = new Stopwatch();
+            timer.Start();
+
+            //主线程调用 0.5450899
+            //            list = info.dbContext.T_Basis_FeedBack.ToList();
+            //            foreach (var item in list)
+            //            {
+            //                Console.WriteLine(item);
+            //            }
+            //匿名函数调用 0.541525
+            //            info.GetInfo(u =>
+            //            {
+            //                foreach (var item in u)
+            //                {
+            //                    Console.WriteLine(item);
+            //                }
+            //                list = u;
+            //                return u;
+            //            });
+
+            //委托调用 0.5193842
+            //            info.GetInfo(new ShowListDeletage(info.ShowInfo));
+
+            //委托调用 0.5236986
+            //            info.GetInfo(u =>
+            //                        {
+            //                            foreach (var item in u)
+            //                            {
+            //                                Console.WriteLine(item);
+            //                            }
+            //                            Console.WriteLine("线程编号：{0}", Thread.CurrentThread.ManagedThreadId);
+            //                            Thread.Sleep(1000);
+            //                            list = u;
+            //                        });
+
+//            info.GetInfoAsync(new ShowListDeletage(info.ShowInfo));
+
+            //异步委托调用
+//            var asyncResult = info.GetInfoAsync(1,u =>
+//            {
+//                var temp = info.dbContext.T_Basis_FeedBack.ToList();
+//                return temp;
+//            });
+//            if (asyncResult.IsCompleted)
+//            {
+////查看是否完成--不确信
+//                var result = (Func<List<T_Basis_FeedBack>>) asyncResult.AsyncState;
+//                list = result.EndInvoke(asyncResult);
+//                Console.WriteLine("》》》》》》》》》线程编号：{0},处理结果：{1}", Thread.CurrentThread.ManagedThreadId, list == null);
+//                    //False 若为同步线程此判断会
+//            }
+//            else
+//            {
+//                Console.WriteLine("未执行完成");
+//            }
+
+            //异步委托调用2
+//            info.GetInfoAsync(info.dbContext, u =>
+//            {
+//                var temp = info.dbContext.T_Basis_FeedBack.ToList();
+//                return temp;
+//            }, u =>
+//            {
+//                var result = (Func< hyhtEntities, List<T_Basis_FeedBack>>)u.AsyncState;
+//                list = result.EndInvoke(u);
+//                Console.WriteLine("线程编号：{0},处理结果：{1}", Thread.CurrentThread.ManagedThreadId, list == null);
+//                timer.Stop();
+//                Console.WriteLine(timer.Elapsed.TotalSeconds);
+//            });
+//
+//            Console.WriteLine("线程编号：{0},处理结果：{1}",Thread.CurrentThread.ManagedThreadId,list==null);//False 若为同步线程此判断会进行阻塞直到list发生转换后执行 否则为True
+
+            Console.ReadKey();
+        }
+
+        /// <summary>
+        /// 异步获取数据
+        /// </summary>
+        /// <param name="param">上下文</param>
+        /// <param name="func">处理函数</param>
+        /// <param name="callback">回调函数</param>
+        /// <returns>异步结果集</returns>
+        public IAsyncResult GetInfoAsync(hyhtEntities param, Func<hyhtEntities, List<T_Basis_FeedBack>> func,AsyncCallback callback)
+        {
+            IAsyncResult model = func.BeginInvoke(param, callback, func);
+            return model;
+        }
+
+        /// <summary>
+        /// 异步获取数据
+        /// </summary>
+        /// <param name="param"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
+        public IAsyncResult GetInfoAsync(int param,Func<int,List<T_Basis_FeedBack>> func)
+        {
+            IAsyncResult model = func.BeginInvoke( param,u =>
+            {
+                //回调函数
+                var result = (Func< int, List< T_Basis_FeedBack >>)u.AsyncState;
+                var list = result.EndInvoke(u);//进行阻塞
+                Console.WriteLine("线程编号：{0}", Thread.CurrentThread.ManagedThreadId);
+
+            }, func);
+            return model;
+        }
+
+        /// <summary>
+        /// 获取数据进行异步处理 【基本不使用】
+        /// </summary>
+        /// <param name="delegateInfo">委托处理--异步回调</param>
+        public void GetInfoAsync(ShowListDeletage delegateInfo)
+        {
+            var list = dbContext.T_Basis_FeedBack.ToList();
+            delegateInfo.BeginInvoke(list, u =>
+            {
+                var result = (ShowListDeletage)u.AsyncState;
+                result.EndInvoke(u);
+                Console.WriteLine("线程编号：{0}", Thread.CurrentThread.ManagedThreadId);
+
+            },delegateInfo);//通过委托 进行异步调用
+        }
+
+        /// <summary>
+        /// 同步获取数据
+        /// </summary>
+        /// <param name="delegateInfo">委托处理</param>
+        public void GetInfo(ShowListDeletage delegateInfo)
+        {
+            var list = dbContext.T_Basis_FeedBack.ToList();
+            delegateInfo.Invoke(list);//通过固定委托 进行调用
+        }
+
+        /// <summary>
+        /// 同步获取数据
+        /// </summary>
+        /// <param name="func">匿名函数</param>
+        public void GetInfo(Func<List<T_Basis_FeedBack>, object> func)
+        {
+            var list = dbContext.T_Basis_FeedBack.ToList();
+            func.Invoke(list);//通过匿名函数 进行调用
+        }
+
+        /// <summary>
+        /// 同步获取数据
+        /// </summary>
+        public void GetInfo()
+        {
+            var list = dbContext.T_Basis_FeedBack.ToList();
+            ShowInfo(list); // 通过其他方法调用
+        }
+
+        /// <summary>
+        /// 显示数据集合
+        /// </summary>
+        /// <param name="list"></param>
+        public void ShowInfo(List<T_Basis_FeedBack> list)
+        {
+            Console.WriteLine("线程编号：{0}", Thread.CurrentThread.ManagedThreadId);
+            foreach (var item in list)
+            {
+                Console.WriteLine(item);
+            }
+        }
+
+        /// <summary>
+        /// ef指定列更新
+        /// </summary>
+        public void Ef_UpdateTest()
+        {
+            Stopwatch timer = new Stopwatch();
+            var user = new T_User()
+            {
+                ID = 110081
+            };
+            hyhtEntities dbContext = new hyhtEntities();
+            dbContext.Configuration.ValidateOnSaveEnabled = false;
+            dbContext.Entry(user).State = EntityState.Unchanged;
+            dbContext.Entry(user).Property(u => u.LoginName).IsModified = true;
+
+            //            dbContext.Entry(user).Property(u => new {u.LoginName, u.CreatedTime});Property异常：只能指定一个属性
+
+            user.LoginName = "testtestetset";
+            user.CreatedTime = DateTime.Now.AddYears(2);
+            timer.Start();
+            dbContext.SaveChanges();
+            timer.Stop();
+            Console.WriteLine("指定更新耗时：{0}", timer.Elapsed.TotalSeconds);//0.30
+
+            timer = new Stopwatch();
+            dbContext = new hyhtEntities();
+
+            timer.Start();
+            var info = dbContext.T_User.FirstOrDefault(u => u.ID == 110081);
+            info.LoginName = "temptemptemp";
+            dbContext.SaveChanges();
+            timer.Stop();
+            Console.WriteLine("指定更新2耗时：{0}", timer.Elapsed.TotalSeconds);//0.12  效率更高
+
+            Console.WriteLine("success");
+        }
+
+    }
+}
